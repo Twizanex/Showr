@@ -1,0 +1,6 @@
+﻿Utvecklingskällor
+
+http://api.jquery.com/jquery.ajax/ - Jquery ajax för get samt post requests till server
+http://blog.modulus.io/getting-started-with-mongoose – Mongoose för databasanvändning till mongodb
+http://expressjs.com/api.html – Express api referens för express specifika delar av utvecklingen.
+Kod från tdp013 labbar, javascript samt layout för meddelande-posting

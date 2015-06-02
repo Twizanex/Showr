@@ -1,0 +1,52 @@
+#messageContainer {
+    width: auto;
+}
+
+#chatrow {
+    max-height: 300px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.message {
+    border-radius: 10px;
+    margin: 4px;
+    padding-top:10px;
+    padding-bottom:10px;
+    width: auto;
+    text-align: center;
+    height: auto;
+    background:none repeat scroll 0% 0% rgba(193, 213, 231, 1);
+}
+
+/* centered columns styles */
+.row-centered {
+    text-align:center;
+}
+.col-centered {
+    display:inline-block;
+    float:none;
+    /* reset the text-align */
+    text-align:left;
+    /* inline-block space fix */
+    margin-right:-4px;
+}
+
+button.addfriendButton, button.removefriendButton {
+    width:120px;
+    text-align:left;
+    margin-right:-4px;
+}
+
+ul {
+    padding:0 0 0 0;
+    margin:0 0 0 0;
+}
+
+ul li {
+    list-style:none;
+    margin-bottom:15px;
+}
+ul li img {
+    cursor: pointer;
+}

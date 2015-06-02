@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+var debug = require('debug')('myapp');
+var app = require('../app');
+var mongoose = require('mongoose');
+var User = mongoose.model('User');
+
+app.set('port', process.env.PORT || 3000);
+
+var server = app.listen(app.get('port'), function() {
+  debug('Express server listening on port ' + server.address().port);
+});
+
+var people = {};
+var people_sockets = {};
+
+var io = require('socket.io').listen(server);
+
+io.sockets.on('connection', function(socket){
+    socket.on('join', function(name) {
+        people[socket.id] = name;
+        people_sockets[socket.id] = socket;
+
+        newUserOnline(name, socket);
+        socket.emit('update', 'You have connected to the server.');
+        io.sockets.emit('update', name + " has joined the server.");
+    });
+
+    socket.on('send', function(target, message) {
+        console.log("Sending message from: "+people[socket.id]+" to "+target);
+        sendMessage(people[socket.id], target, message);
+        console.log("Message from: " + people[socket.id] + " Message: " + message);
+    });
+
+    socket.on('disconnect', function() {
+        console.log(people[socket.id]+" disconnected");
+        io.sockets.emit("remove-person", people[socket.id]);
+        delete people[socket.id];
+    });
+});
+
+function newUserOnline(name, socket){
+    User.findOne({username: name}, function(err, user){
+        var friends_online = [];
+        if(err) throw err;
+        if(user){
+            for(var p in people){
+                if(user.friends.indexOf(people[p]) > -1){
+                    friends_online.push(people[p]);
+                    people_sockets[p].emit("add-person", name);
+                }
+            }
+            socket.emit("update-people", friends_online);
+        }
+    });
+}
+
+function sendMessage(from, to, message){
+    User.findOne({username: from}, function(err, user){
+        if(err) throw err;
+        if(user){
+            if(user.friends.indexOf(to) > -1){
+                for(var p in people){
+                    if(people[p] == to){
+                        people_sockets[p].emit("chat", from, message);
+                    }
+                }
+            }
+        }
+    })
+}
+
+function sendMessageToFriends(name, message){
+    User.findOne({username: name}, function(err, user){
+        if(err) throw err;
+        if(user){
+            for(var p in people){
+                if(user.friends.indexOf(people[p][0]) > -1){
+                    people_sockets[p].emit("chat", name, message);
+                }
+            }
+        }
+    })
+}

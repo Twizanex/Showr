@@ -1,0 +1,131 @@
+<div class="container">
+    <div class="row">
+        <div class="span2">
+            <p> Friends Online: </p>
+            <ul id="people"></ul>
+        </div>
+        <div class="span4">
+            <ul id="messages" class="unstyled"></ul>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="span5 col-md-offset-2" id="login">
+            <form class="form-inline">
+                <input type="text" class="input-sm" placeholder="Your name" id="name">
+                <input type="button" name="join" id="join" value="Start Chat" class="btn btn-primary">
+            </form>
+        </div>
+
+        <div class="span5 col-md-offset-2" id="chat">
+            <form id="2" class="form-inline">
+                <input type="text" class="input" placeholder="To" id="target">
+                <input type="text" class="input" placeholder="Your message" id="message">
+                <input type="button" name="send" id="send" value="Send" class="btn btn-success">
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js" type="text/javascript"></script>
+<script src="/javascripts/bootstrap.js"></script>
+<script src="socket.io/socket.io.js"></script>
+<script>
+
+    function getUsername(path, method, data, successcallback){
+        $.ajax({
+            type: method,
+            url: "http://localhost:3000/"+path,
+            data: data,
+            dataType: 'JSON',
+            cache: false,
+            success: successcallback
+        });
+    }
+
+    $(document).ready(function() {
+        var socket = io();
+        $('#chat').hide();
+        $('#name').focus();
+        $('form').submit(function(event) {
+            event.preventDefault();
+        });
+        var ready;
+        var name;
+
+        getUsername("getusername", "GET", null, function(data){
+            name = data.username;
+            socket.emit("join", name);
+            $('#login').detach();
+            $('#chat').show();
+            $('#message').focus();
+            ready = true;
+        });
+
+        $('#name').keypress(function(e) {
+            if(e.which == 13) {
+                var name = $('#name').val();
+                if (name != "") {
+                    socket.emit('join', name);
+                    ready = true;
+                    $('#login').detach();
+                    $('#chat').show();
+                    $('#message').focus();
+                }
+            }
+        });
+
+        socket.on('update', function(message) {
+            if(ready){
+                $("#message").append(" " + message + " ");
+            }
+        });
+
+        socket.on('update-people', function(people) {
+            if(ready) {
+                $('#people').empty();
+                $.each(people, function(clientid, name) {
+                    $('#people').append("<li id='"+name+"'>"+name+"</li>");
+                });
+            }
+        });
+
+        socket.on('add-person', function(name) {
+            if(ready) {
+                $('#people').append("<li id='"+name+"'>"+name+"</li>");
+            }
+        });
+
+        socket.on('remove-person', function(name) {
+            if(ready) {
+                document.getElementById(name).remove();
+            }
+        });
+
+        socket.on('disconnect', function() {
+            getUsername("getusername", "GET", null, function(data){
+                $('#messages').append("The server is not available");
+                $('#message').attr("disabled", "disabled");
+                $('#send').attr("disabled", "disabled");
+            });
+        });
+
+        $('#send').click(function() {
+            var message = $('#message').val();
+            socket.emit('send', $("#target").val(),message);
+            $('#message').val("");
+        });
+
+        $('#message').keypress(function(e) {
+            if(e.which == 13) {
+                var message = $('#message').val();
+                socket.emit('send', $("#target").val(),message);
+                $('#message').val("");
+            }
+        });
+
+        socket.on('chat', function(who, message) {
+            $('#messages').prepend("<li><strong><span class='text-success'>" + who + "</span></strong> says: " + message + "</li>");
+        });
+    });
+</script>

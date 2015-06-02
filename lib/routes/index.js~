@@ -1,0 +1,195 @@
+var mongoose = require('mongoose');
+var User = mongoose.model('User');
+var express = require('express');
+var formidable = require('formidable');
+var fs = require('fs-extra');
+var qt = require('quickthumb');
+var util = require('util');
+var router = express.Router();
+var dbfunctions = require("../databasefunctions");
+
+router.get('/', function(req, res) {
+  res.render('index', {user_id: req.session.user_id});
+});
+
+router.get('/contact', function(req, res) {
+    res.render('contact', {user_id: req.session.user_id});
+});
+
+router.get('/about', function(req, res) {
+    res.render('about', {user_id: req.session.user_id});
+});
+
+router.get('/signup', function(req, res) {
+    res.render('signup-in', {
+	actionpath:"/signup",
+	headingtext:"Fill in wanted username and password to sign up",
+	buttontext:"Sign up, its free",
+	user_id: req.session.user_id
+    });
+});
+
+router.post('/signup',function(req, res) {
+    dbfunctions.registerUser(req, res);
+});
+
+router.get('/signin', function(req, res) {
+    res.render('signup-in', {actionpath:"/signin", headingtext:"Input username and password to sign in", buttontext:"Sign in"})
+});
+
+router.post('/signin', function(req,res) {
+    dbfunctions.queryUser(req, res);
+});
+
+router.get('/signout', function(req, res){
+    req.session.destroy(function(){
+        res.redirect('/');
+    });
+});
+
+router.get('/upload', dbfunctions.restricted, function(req,res) {
+    var form = '<form action="/upload" enctype="multipart/form-data" method="post"><input name="title" type="text" /><input multiple="multiple" name="upload" type="file" /><input type="submit" value="Upload" /></form>';
+    res.send(form);
+});
+
+router.post('/upload', dbfunctions.restricted, function (req, res) {
+    var form = new formidable.IncomingForm();
+    form.parse(req, function(err, fields, files) {
+        res.writeHead(200);
+        res.write('Received upload');
+        res.end(util.inspect({fields: fields, files: files}));
+    });
+    
+    form.on('end', function(fields, files) {
+        /*temp location for img */
+        var temp_path = this.openedFiles[0].path;
+        /* file name */
+        var file_name = this.openedFiles[0].name;
+        /* location were we copy upload file */
+        var new_location = 'uploads/';
+	
+        fs.copy(temp_path, new_location + file_name, function(err) {
+            if(err) {
+                console.log(err);
+            } else {
+                console.log("Success upload");
+            }
+        });
+    });
+});
+
+router.get('/profile', dbfunctions.restricted, function(req, res){
+    User.findOne({username: req.session.user.username},
+		 function(err, user){
+		     res.render('profile',
+				{
+				    username: req.session.user.username,
+				    user_id: req.session.user_id,
+				    postingas: req.session.user.username,
+				    showfriends: true,
+				    friends: user.friends
+				});
+		 });
+});
+
+router.post('/usersearch', dbfunctions.restricted, function(req, res){
+    User.findOne({username:req.body.user},
+		 function(err, user) {
+		     if (err) {
+			 return console.log(err);
+		     } else if (!user) {
+			 res.send("No such user");
+		     }
+		     else {
+			 res.redirect("/users/" + user.username);
+		     }
+		 });
+});
+
+router.post('/checkfriendstatus', dbfunctions.restricted, function(req, res){
+    // As long as we are not requesting our own profile, lets check the user for friendstatus
+    console.log("serverside requested friendstatus name: ", req.body.name);
+    if (req.body.name) {
+        User.findOne({username: req.session.user.username},
+		     function (err, user) {
+			 if (err) {
+			     throw err;
+			 }
+			 else {
+			     if (user.friends.indexOf(req.body.name) > -1) {
+				 var result = {name:req.body.name, status:true};
+				 res.send(JSON.stringify(result));
+			     } else {
+				 var result = {name:req.body.name, status:false};
+				 res.send(JSON.stringify(result));
+			     }
+			 }
+		     });
+    }
+});
+
+router.post('/addfriend', dbfunctions.restricted, function(req, res) {
+    var name = req.body.name;
+    console.log(req.session.user.username + " adding " + name);
+    User.findOneAndUpdate(
+        {
+            username: req.session.user.username,
+            password: req.session.user.password},
+        {"$push": { friends: name}},
+        function (err, user) {
+            if (err) {
+		return console.log("error adding friend to your friends list");
+            }else{
+		console.log("results: " + user);
+            }
+	});
+});
+
+router.post('/removefriend', dbfunctions.restricted, function(req, res) {
+    var name = req.body.name;
+    console.log(req.session.user.username + " removing" + name);
+    User.findOneAndUpdate(
+        {
+	    username: req.session.user.username,
+            password: req.session.user.password
+	},
+        {"$pull": { friends: name}},
+        function (err, user) {
+            if (err) {
+                return console.log("error removing friend to your friends list");
+            } else{
+                console.log("removed " + name + "as friend");
+            }
+        });
+});
+
+router.post('/postmessage', dbfunctions.restricted, function(req, res){
+    var name = req.body.name;
+    var text = req.body.text;
+    User.findOneAndUpdate(
+        {
+            username: name
+	},
+        {"$push": { wall_posts: {from: req.session.user.username, text: text}}},
+        function (err, result){
+            if (err) {
+                return console.log("error writing to wall");
+            }
+        });
+});
+
+router.post('/getall', dbfunctions.restricted, function(req, res){
+    var name = req.body.name;
+    User.findOne({username: name}, function(err, user){
+	if(err){
+            console.log("error getting messages");
+	}else if(!user){
+            console.log("user error");
+        }else{
+            console.log("get all user "+user.wall_posts);
+            res.send(JSON.stringify(user.wall_posts));
+	}
+    });
+});
+
+module.exports = router;
